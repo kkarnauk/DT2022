@@ -92,7 +92,26 @@
 
 -- диагональная матрица с элементами e на диагонали и z на остальных позициях.
 
-\func diag {A : \Type} (z e : A) (n : Nat) : Mat A n n => {?}
+\func vreverse {A : \Type} (n : Nat) (v : Vec A n) : Vec A n => builder n 0 v vnil
+  \where {
+    \func builder {A : \Type} (n m : Nat) (v : Vec A n) (res : Vec A m) : Vec A (n + m) \elim n, v
+      | 0, vnil => res
+      | suc n, vcons a v => builder n (suc m) v (vcons a res)
+  }
+
+\func diag {A : \Type} (z e : A) (n : Nat) : Mat A n n => vreverse n $ builder z e n n
+  \where {
+    \func builder {A : \Type} (z e : A) (n k : Nat) : Mat A k n \elim k
+      | 0 => vnil
+      | suc k => vcons (one-element z e n k) (builder z e n k)
+
+    \func one-element {A : \Type} (z e : A) (len k : Nat) : Vec A len \elim len
+      | 0 => vnil
+      | suc len => \case k \with {
+        | 0 => vcons e (one-element z e len (suc len))
+        | suc k => vcons z (one-element z e len k)
+      }
+  }
 
 -- транспонирование матриц
 
