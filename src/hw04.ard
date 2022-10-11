@@ -60,17 +60,18 @@
 --    Высота листа равна 0.
 
 \data Tree (A : \Type) (n : Nat) \elim n
-  | 0 => t-leaf
-  | suc n => t-branch A (Maybe $ Tree A n) (Maybe $ Tree A n)
+  | 0 => t-empty
+  | suc n => {
+    | t-leaf
+    | t-branch A (Tree A n) (Tree A n)
+  }
 
 -- определите функцию, возвращающую высоту дерева.
 
 \func height {A : \Type} (n : Nat) (t : Tree A n) : Fin (suc n) \elim n, t
-  | 0, t-leaf => fzero
-  | suc n, t-branch _ (just l) (just r) => fsuc $ fin-max (suc n) (height n l) (height n r)
-  | suc n, t-branch _ nothing (just r) => fsuc $ height n r
-  | suc n, t-branch _ (just l) nothing => fsuc $ height n l
-  | suc n, t-branch _ nothing nothing => fzero
+  | 0, t-empty => fzero
+  | suc n, t-leaf => fsuc fzero
+  | suc n, t-branch _ l r => fin-max (height n l) (height n r)
     \where {
       \func fin-max (n : Nat) (x y : Fin n) : Fin n \elim n, x, y
         | suc n, fzero, y => y
