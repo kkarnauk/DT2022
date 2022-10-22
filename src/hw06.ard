@@ -1,4 +1,5 @@
 \import Function.Meta
+\import Meta
 \import Utils
 \import hw01 ()
 \import lect05
@@ -36,12 +37,9 @@
 -- 4. Определите \record, состоящий из пар взаимно простых натуральных чисел.
 --    Определите тип, состоящий из натуральных чисел, взаимно простых с 60.
 
-\record CoprimeNat (x : Nat) (y : Nat) (p : T (isCoprime x y))
+\record CoprimeNat (x : Nat) (y : Nat) (p : isCoprime x y)
   \where {
-    \func isCoprime (x : Nat) (y : Nat) : Bool => \case hw01.gcd x y \with {
-      | 1 => true
-      | _ => false
-    }
+    \func isCoprime (x : Nat) (y : Nat) => hw01.gcd x y = 1
   }
 
 \func Comprime60 => CoprimeNat 60
@@ -99,16 +97,19 @@
 \data State' (S A : \Type)
   | state' (S -> \Sigma S A)
 
+\func s'run {S A : \Type} (st : State' S A) (s : S) : \Sigma S A \elim st
+  | state' st => st s
+
 \instance State'Monad (S : \Set) : Monad (State' S) => \new Monad {
   | return a => state' (\lam s => (s, a))
-  | >>= {A} (x : State' S A) f => state' $ \lam s => \case x \with {
-    | state' sf => \case sf s \with {
-      | (s', a) => \case f a \with {
-        | state' sf' => sf' s'
-      }
-    }
+  | >>= m f => state' $ \lam s => \let (s', a) => s'run m s \in s'run (f a) s'
+  | left-identity a h => cases (h a) \with { -- подсмотрел существование cases у другого человека
+    | state' _ => idp
   }
-  | left-identity {A} {B} a h => {?}
-  | right-identity _ => {?}
-  | associativity _ _ _ => {?}
+  | right-identity m => \case \elim m \with {
+    | state' _ => idp
+  }
+  | associativity m g h => \case \elim m \with {
+    | state' _ => idp
+  }
 }
