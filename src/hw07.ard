@@ -22,12 +22,25 @@
 --    То есть ReflTransClosure R -- это минимальное рефлексивное и транзитивное отношение, содержащее R.
 
 \data ReflTransClosure {A : \Type} (R : A -> A -> \Type) (x y : A)
+  | relation (R x y)
+  | reflexivity (x = y)
+  | transitivity (z : A) (r1 : ReflTransClosure R x z) (r2 : ReflTransClosure R z y)
 
 -- 4. Докажите, что если R уже рекфлексивно и транзитивно, то ReflTransClosure R эквивалентно R.
 
 \func ReflTransClosure-lem {A : \Type} (R : A -> A -> \Type) (refl : \Pi (x : A) -> R x x) (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
   : \Pi (x y : A) -> R x y <-> ReflTransClosure R x y
-  => {?}
+  => \lam x y => (relation, aux R refl trans x y) \where {
+
+  \func aux {A : \Type} (R : A -> A -> \Type)
+            (refl : \Pi (x : A) -> R x x)
+            (trans : \Pi (x y z : A) -> R x y -> R y z -> R x z)
+            (x y : A)
+            (r : ReflTransClosure R x y) : R x y \elim r
+    | relation r1 => r1
+    | reflexivity p => transport (R x) p $ refl x
+    | transitivity z r1 r2 => trans x z y (aux R refl trans x z r1) (aux R refl trans z y r2)
+}
 
 -- 5. Определите предикат Sublist xs ys на списках, означающий "список xs является подсписком ys".
 \data Sublist {A : \Type} (xs ys : List A) \elim xs, ys
