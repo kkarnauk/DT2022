@@ -1,24 +1,121 @@
 \import Data.Bool
-\import Data.List \hiding (headDef)
-\import Utils (<->)
-\import lect08
+\import Data.List
+\import Function.Meta
+\import Meta
 \import Order.LinearOrder
+\import Paths.Meta
+\import Utils (*>, <->, pmap, sym)
+\import hw01 (fac)
+\import hw03 (ldistr)
+\import lect03
+\import lect08
 \open LinearOrder
+\open Nat
 
 -- 1. Реализуйте функцию filter и докажите ее корректность, то есть, что выполнены следующие условия:
 --    * filter p xs является подсписком xs
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
 
+\data Filtered {A : \Type} (xs : List A) (p : A -> Bool) -- TODO
+
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
+
+\func perm-length-eq {A : \Type} (l1 l2 : List A) (p : Perm l1 l2) : length l1 = length l2 \elim l1, l2, p
+  | nil, nil, perm-nil => idp
+  | :: x l1, :: y l2, perm-cons p p1 => pmap suc $ perm-length-eq _ _ p1
+  | l1, l2, perm-trans {zs} p1 p2 => perm-length-eq l1 zs p1 *> perm-length-eq zs l2 p2
+  | :: x (:: x' l1), :: y (:: y' l2), perm-swap p p1 p2 => pmap suc $ pmap suc $ pmap length p2
+
+\func perm<->sort {A : Dec} (l1 l2 : List A) : Perm l1 l2 <-> (Insertion.sort l1 = Insertion.sort l2) =>
+  (perm->sort _ _, perm<-sort _ _)
+
+  \where {
+    \func perm->sort {A : Dec} (l1 l2 : List A) (p : Perm l1 l2) : Insertion.sort l1 = Insertion.sort l2 \elim l1, l2, p
+      | nil, nil, perm-nil => idp
+      | :: x l1, :: y l2, perm-cons p p1 => rewrite p $ pmap (Insertion.sort.insert y) $ perm->sort l1 l2 p1
+      | l1, l2, perm-trans {zs} p1 p2 => perm->sort l1 zs p1 *> perm->sort zs l2 p2
+      | :: x (:: x' l1), :: y (:: y' l2), perm-swap p p1 p2 => rewrite (Insertion.sort-perm.insert-comm _ _ _, p, p1) $ pmap _ p2
+
+    \func tail {A : \Type} (xs : List A) : List A \elim xs
+      | nil => nil
+      | :: a xs => xs
+
+    \func perm-eq {A : \Type} {l1 l2 : List A} (eq : l1 = l2) : Perm l1 l2 \elim l1, l2
+      | nil, nil => perm-nil
+      | nil, :: a l2 => \case eq
+      | :: a l1, nil => \case eq
+      | :: a1 l1, :: a2 l2 => \let a1=a2 => pmap (headDef a1) eq \in
+                              \let l1=l2 => pmap tail eq \in perm-cons a1=a2 $ perm-eq l1=l2
+
+    \func perm-comm {A : \Type} {l1 l2 : List A} (p : Perm l1 l2) : Perm l2 l1 \elim l1, l2, p
+      | nil, nil, perm-nil => perm-nil
+      | :: x l1, :: y l2, perm-cons p p1 => perm-cons (sym p) $ perm-comm p1
+      | l1, l2, perm-trans p1 p2 => perm-trans (perm-comm p2) (perm-comm p1)
+      | :: x (:: x' l1), :: y (:: y' l2), perm-swap p p1 p2 => perm-swap (sym p1) (sym p) (sym p2)
+
+    \func perm<-sort {A : Dec} (l1 l2 : List A) (s : Insertion.sort l1 = Insertion.sort l2) : Perm l1 l2
+      => perm-trans (Insertion.sort-perm l1) $ perm-trans (perm-eq s) $ perm-comm $ Insertion.sort-perm l2
+  }
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
 
+--\func perm-nil=>nil ()
+
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
   => {?}
+--  => mcases {Insertion.sort} \with {
+--    | nil => {?}
+--    | :: a xs => {?}
+--  }
+--  \where {
+--    aux
+--  }
 
 -- 4. Определите факториал через хвостовую рекурсию.
 --    Докажите, что он равен обычному определению факториала.
+
+\func fac-tailrec (n : Nat) : Nat => aux n 1
+  \where {
+    \func aux (n : Nat) (res : Nat) : Nat \elim n
+      | 0 => res
+      | suc n => aux n (suc n * res)
+  }
+
+\func fac-eq-fac-tailrec (n : Nat) : fac n = fac-tailrec n => unfold fac-tailrec $ sym $ rewriteI (one*x $ fac n) $ aux-lemma n 1
+
+  \where {
+    \func aux-lemma (n res : Nat) : fac-tailrec.aux n res = res * fac n \elim n
+      | 0 => idp
+      | suc n => rewrite (*-assoc res (suc n) (fac n)) $ mcases {*, 1} \with {
+        | zero => rewrite (*-comm 0 _, *-comm 0 _) $ aux-lemma-0 n
+        | suc m => rewrite (*-comm (suc n) m, *-suc m n, +-assoc _ _ _, +-comm m n, +-assoc _ _ _) $ aux-lemma n (suc (m * n + (n + m)))
+      }
+
+    \func aux-lemma-0 (n : Nat) : fac-tailrec.aux n 0 = 0 \elim n
+      | 0 => idp
+      | suc n => aux-lemma-0 n
+
+    \func *-assoc (x y z : Nat) : x * (y * z) = (x * y) * z \elim z
+      | 0 => idp
+      | suc z => rewrite (ldistr x (y * z) y) $ pmap (\lam n => n + x * y) $ *-assoc x y z
+
+    \func *-comm (x y : Nat) : x * y = y * x \elim x
+      | 0 => zero*x y
+      | suc y => rewrite (*-suc, *-comm) idp
+
+    \func zero*x (x : Nat) : 0 * x = 0 \elim x
+      | 0 => idp
+      | suc x => zero*x x
+
+    \func one*x (x : Nat) : 1 * x = x \elim x
+      | 0 => idp
+      | suc x => pmap suc $ one*x x
+
+    \func *-suc (m n : Nat) : suc m * n = m * n + n \elim n
+      | 0 => idp
+      | suc n => rewrite (+-assoc, +-comm m n, *-suc, +-assoc) idp
+  }
 
 -- 5. Определите функцию, которая проверяет правильность скобочной последовательности.
 --    Докажите ее корректность.
