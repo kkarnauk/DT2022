@@ -1,6 +1,7 @@
 \import Data.Bool
 \import Data.List
 \import Function.Meta
+\import Logic.Meta
 \import Meta
 \import Order.LinearOrder
 \import Paths.Meta
@@ -17,7 +18,55 @@
 --    * Все элементы filter p xs удовлетворяют предикату p
 --    * Любой подсписок xs с тем же свойством является подсписком filter p xs
 
-\data Filtered {A : \Type} (xs : List A) (p : A -> Bool) -- TODO
+\data Sublist {A : \Type} (xs ys : List A) \elim xs, ys
+  | nil, nil => sublist-empty
+  | :: x xs, :: y ys => sublist-head-match (x = y) (Sublist xs ys)
+  | xs, :: y ys => sublist-drop-head (Sublist xs ys)
+
+\data ElementsSatisfy {A : \Type} (p : A -> Bool) (xs : List A) \elim xs
+  | nil => satisfy-nill
+  | :: x xs => satisfy-cons (p x = true) (ElementsSatisfy p xs)
+
+\func filter {A : \Type} (p : A -> Bool) (xs : List A) : List A \elim xs
+  | nil => nil
+  | :: a xs => \case p a \with {
+    | true => a :: filter p xs
+    | false => filter p xs
+  } \where {
+
+  \func filter-sublist {A : \Type} (p : A -> Bool) (xs : List A) : Sublist (filter p xs) xs \elim xs
+    | nil => sublist-empty
+    | :: a xs => cases (p a) \with {
+      | true => sublist-head-match idp $ filter-sublist p xs
+      | false => sublist-drop-head $ filter-sublist p xs
+    }
+
+  \func filter-satisfy {A : \Type} (p : A -> Bool) (xs : List A) : ElementsSatisfy p (filter p xs) \elim xs
+    | nil => satisfy-nill
+    | :: a xs => \case p a \as pa, idp : p a = pa \with {
+      | true, idp-p => rewrite idp-p $ satisfy-cons idp-p $ filter-satisfy p xs
+      | false, idp-p => rewrite idp-p $ filter-satisfy p xs
+    }
+
+  \func filter-all-sublists {A : \Type}
+                            (p : A -> Bool)
+                            (xs ys : List A)
+                            (sub : Sublist ys xs)
+                            (sub-sat : ElementsSatisfy p ys) : Sublist ys (filter p xs) \elim xs, ys, sub
+    | nil, nil, sublist-empty => sublist-empty
+    | :: y xs, :: x ys, sublist-head-match m sub => rewrite m $ \case p y \as py, idp : p y = py \with {
+      | true, idp-p => rewrite idp-p $ sublist-head-match idp $ filter-all-sublists p xs ys sub $ \case sub-sat \with {
+        | satisfy-cons _ e => e
+      }
+      | false, idp-p => \case sub-sat \with {
+        | satisfy-cons p1 _ => \let p1' => rewrite m p1 \in contradiction
+      }
+    }
+    | :: y xs, ys, sublist-drop-head sub => cases (p y) \with {
+      | true => sublist-drop-head $ filter-all-sublists p xs ys sub sub-sat
+      | false => filter-all-sublists p xs ys sub sub-sat
+    }
+}
 
 -- 2. Докажите, что Perm l1 l2 тогда и только тогда, когда Insertion.sort l1 = Insertion.sort l2.
 
