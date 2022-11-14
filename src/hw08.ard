@@ -1,3 +1,4 @@
+\import Arith.Int
 \import Data.Bool
 \import Data.List
 \import Data.Or
@@ -7,12 +8,11 @@
 \import Meta
 \import Order.LinearOrder
 \import Paths.Meta
-\import Utils (*>, <->, Maybe, just, nothing, pmap, sym)
+\import Utils (*>, <->, pmap, sym)
 \import hw01 (fac)
 \import hw03 (ldistr)
 \import lect03
 \import lect08
-\import lect09
 \open LinearOrder
 \open Nat
 
@@ -111,8 +111,6 @@
   }
 
 -- 3. Докажите, что спецификация "результат является перестановкой входа и отсортирован" является полной для функции sort.
-
---\func perm-nil=>nil ()
 
 \func completeness {A : Dec} (sort : List A -> List A) (l : List A) (p : Perm l (sort l)) (s : Sorted (sort l)) : sort l = Insertion.sort l
   => only-sorted-for-list p s
@@ -260,13 +258,102 @@
 
 \data Paren | Left | Right
 
-\func isBalanced (xs : List Paren) : Bool
-  => {?}
+\func T (b : Bool) : \Type
+  | true => \Sigma
+  | false => Empty
+
+\func isBalanced (xs : List Paren) : Bool => \case calc-balance-0 xs \with {
+  | pos 0 => true
+  | _     => false
+}
+  \where {
+
+    \func calc-balance (xs : List Paren) (balance : Int) : Int \elim xs
+      | nil => balance
+      | :: a xs => \case a \with {
+        | Left => calc-balance xs $ isuc balance
+        | Right => calc-balance-0 xs $ ipred balance
+      }
+
+    \func calc-balance-0 (xs : List Paren) => calc-balance xs $ pos 0
+
+    \func balance-add (xs : List Paren) (x y : Int) : calc-balance xs x IntRing.+ y = calc-balance xs (x IntRing.+ y) \elim xs
+      | nil => idp
+      | :: a xs => cases a \with {
+        | Left => \let aux => isuc-left x y \in rewriteI aux $ balance-add _ _ _
+        | Right => cases (calc-balance-0 xs) idp
+      }
+
+    \func isuc-left (x y : Int) : isuc x IntRing.+ y = isuc (x IntRing.+ y)
+      | pos n, pos m => idp
+      | pos n, neg m => {?}
+      | neg n, pos n1 => {?}
+      | neg n, neg n1 => {?}
+
+    \func balance-left-head (xs : List Paren) : calc-balance-0 xs IntRing.+ pos 1 = calc-balance-0 (Left :: xs) \elim xs
+      | nil => unfold calc-balance-0 idp
+      | :: a xs => cases a \with {
+        | Left => unfold calc-balance-0 $ balance-add _ _ _
+        | Right => unfold calc-balance-0 idp
+      }
+
+    \func balance-left-tail (xs : List Paren) : calc-balance-0 xs IntRing.+ pos 1 = calc-balance-0 (xs ++ Left :: nil) \elim xs
+      | nil => unfold calc-balance-0 idp
+      | :: a xs => cases a \with {
+        | Left => unfold calc-balance-0 $ {?}
+        | Right => {?}
+      }
+
+    \func balance-right-head (xs : List Paren) : calc-balance-0 xs IntRing.+ neg 1 = calc-balance-0 (Right :: xs) \elim xs
+      | nil => unfold calc-balance-0 idp
+      | :: a xs => cases a \with {
+        | Left => unfold calc-balance-0 $ balance-add _ _ _
+        | Right => unfold calc-balance-0 idp
+      }
+
+    \func balance-left-inserted (xs ys : List Paren) : calc-balance-0 xs IntRing.+ calc-balance-0 ys IntRing.+ pos 1 = calc-balance-0 (xs ++ Left :: ys)
+      | nil, nil => unfold calc-balance-0 idp
+      | nil, :: a ys => \let aux => balance-left-head (a :: ys) \in rewriteI aux $ rewrite IntRing.zro-left idp
+      | :: a xs, nil => {?}
+      | :: a xs, :: a1 ys => {?}
+
+    \func balance-additive (xs ys : List Paren) : calc-balance-0 xs IntRing.+ calc-balance-0 ys = calc-balance-0 (xs ++ ys)
+      \elim xs, ys
+        | nil, nil => unfold calc-balance-0 idp
+        | nil, :: a ys => unfold calc-balance-0 $ cases a \with {
+                                                    | Left => cases (calc-balance ys (pos 1)) idp
+                                                    | Right => cases (calc-balance ys (pos 1)) idp
+                                                  }
+        | :: a xs, nil => unfold calc-balance-0 $ cases a \with {
+                                                    | Left => \let xs-nil => list+nil xs
+                                                              \in rewriteI xs-nil $ cases (calc-balance xs (pos 1)) idp
+                                                    | Right => cases (calc-balance xs (pos 1)) idp
+                                                  }
+        | :: x xs, :: y ys => unfold calc-balance-0 $ cases (x, y) \with {
+                                                         | Left, Left => {?}
+                                                         | Left, Right => {?}
+                                                         | Right, Left => {?}
+                                                         | Right, Right => {?}
+                                                       }
+
+    \func list+nil {A : \Type} (xs : List A) : xs = xs ++ nil \elim xs
+        | nil => idp
+        | :: a xs => pmap (a ::) $ list+nil xs
+  }
 
 \data Balanced (xs : List Paren) \with
   | nil => nil-balanced
   | :: Left xs => cons-balanced {ys : List Paren} (Balanced ys) (xs = ys ++ Right :: nil)
   | xs => append-balanced {ys zs : List Paren} (Balanced ys) (Balanced zs) (xs = ys ++ zs)
 
-\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs
-  => {?}
+\func isBalanced-correct (xs : List Paren) : (isBalanced xs = true) <-> Balanced xs => (aux-l-r xs, aux-r-l xs)
+  \where {
+    \func aux-l-r (xs : List Paren) (balanced : isBalanced xs = true) : Balanced xs \elim xs
+      | nil => nil-balanced
+      | :: a xs => \let balanced-unfold => {?}
+
+    \func aux-r-l (xs : List Paren) (balanced : Balanced xs) : isBalanced xs = true \elim xs, balanced
+      | nil, nil-balanced => {?}
+      | :: Left xs, cons-balanced balanced p => {?}
+      | xs, append-balanced balanced1 balanced2 p => {?}
+  }
