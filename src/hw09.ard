@@ -12,7 +12,7 @@
 \open LinearOrder
 
 -- 1. Закончите определение \instance Monad для Term.
-
+--
 \instance TermMonad : Monad Term
   | return => var
   | >>= {A B : \Set} (t : Term A) (k : A -> Term B) : Term B \elim t {
@@ -111,8 +111,15 @@
 
 -- 4. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
-  | acc f => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim t, a
+  | app t1 t2, acc f => acc $ \case \elim __, \elim __ \with {
+    | p0, redBeta p p1 => {?}
+    | app p0 p1, appLeft p2 p => {?}
+    | app p0 p1, appRight p p2 => {?}
+  }
+  | lam t, acc _x => {?}
+  | var v, acc _x => {?}
+  | unit, acc _x => {?}
 
 \func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
   => {?}
@@ -158,14 +165,16 @@
 
         | unit, Unit, unitType => unitType
         | var v, res-type, varType p => varType p
-        | app res1 res2, res-type, appType prev1 prev2 =>
-          \let aux-1 => aux {U} {V} {Arr A res-type} ctx ctx' a h' {?} res1 {?} (Arr A res-type) {?} prev1 \in {?}
+        | app res1 res2, res-type, appType prev1 prev2 => {?}
+--          \let aux-1 => aux {U} {V} {Arr A res-type} ctx ctx' a h' {?} res1 {?} (Arr A res-type) {?} prev1 \in {?}
 
-        | lam res, Arr res-type res-type1, lamType prev => {?}
+        | lam res, Arr res-type1 res-type2, lamType prev =>
+            \let res-t => aux (maybe res-type1 ctx) (maybe res-type1 ctx') (liftM a) {?} (just u) res {?} res-type2 {?} prev \in {?}
     }
 
---\func substLem1 {V : \Set} {ctx : V -> Type} {x b : Term V} {A B : Type} (hx : hasType ctx x A)
---                (hb : hasType (maybe A ctx) b B) : hasType ctx (b >>= maybe x var) => {?}
+--\func substLem1 {V : \Set} {ctx : V -> Type} {a b : Term V} {x : V} {A B : Type} (hx : hasType ctx (var x) A)
+--                (ha : hasType ctx a A)
+--                (hb : hasType (\lam v => {?}) b B) : hasType ctx (b >>= ) => {?}
 
 -- 6. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
 
@@ -183,7 +192,16 @@
   \where {
     \func red1Lem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red1 a a') {A : Type} (h : hasType ctx a A) : hasType ctx a' A
       \elim a, a', r, A, h
-        | app t1 t2, a', redBeta {g} eq p1, A, appType h1 h2 => {?}
+        | app t1 t2, a', redBeta {g} eq p1, A1, appType {A2} h1 h2 =>
+            \let h1-g => rewrite eq h1 \in cases h1-g \with {
+                | lamType x => \let g-t => substLem (maybe A2 ctx) g A1 x ctx (maybe t2 var) (
+                    \lam u => cases u \with {
+                      | nothing => h2
+                      | just a => varType idp
+                    }
+                  )
+                \in rewrite p1 g-t
+              }
 
         | app t1 t2, app t1' t2', appLeft r idp, A, appType h1 h2 =>
             \let h1-t1 => red1Lem r h1 \in appType h1-t1 h2
@@ -206,3 +224,9 @@
   => {?}
 
 -- 8. Докажите typeableInterp из лекции
+
+\func typeableInterp {U V : \Set} (ctx : U -> Type) (env : U -> Term V)
+                     (C : \Pi (u : U) -> Interp (ctx u) (env u)) {t : Term U} {T : Type}
+                     (p : hasType ctx t T)
+  : Interp T (t >>= env)
+  => {?}
