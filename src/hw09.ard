@@ -1,7 +1,13 @@
+\import Algebra.Meta
 \import Data.List
+\import Function.Meta
+\import Meta
 \import Order.LinearOrder
+\import Paths
+\import Paths.Meta
 \import Utils (Maybe, just, maybe, nothing)
-\import lect07(Decide)
+\import lect05
+\import lect07(Decide, no, yes)
 \import lect09
 \open LinearOrder
 
@@ -15,44 +21,179 @@
     | app t1 t2 => app (t1 >>= k) (t2 >>= k)
     | lam t => lam (t >>= liftM k)
   }
-  | return-left => {?}
-  | return-right => {?}
-  | >>=-assoc => {?}
+  | return-left {A B : \Set} (a : A) (k : A -> Term B) => unfold idp
+  | return-right {A : \Set} (m : Term A) : m >>= return = m \elim m {
+    | app m1 m2 => repeat (rewrite return-right) idp
+    | lam m => rewrite (liftM-return-idp $ lam m) $ pmap lam $ return-right _
+    | var v => idp
+    | unit => idp
+  }
+  | >>=-assoc {A B C : \Set} (m : Term A) (k : A -> Term B) (l : B -> Term C) : (m >>= k) >>= l = m >>= (\lam x => k x >>= l)
+    \elim m {
+      | app m1 m2 => repeat (rewrite >>=-assoc) idp
+      | lam m => rewrite >>=-assoc $ pmap lam $ pmap (m >>=) $ funExt'
+                                   $ \lam a => unfold liftM $ cases a \with {
+                                        | nothing => idp
+                                        | just a => unfold {?}
+                                      }
+      | var v => idp
+      | unit => idp
+    }
+
+  \where {
+    \func liftM-return-idp {A : \Set} (m : Term A) : liftM {A} return = return =>
+      unfold liftM $ funExt' $ \lam a => cases a idp
+  }
+
 
 -- 2. Определите отношение многошаговой редукции на Term.
 
-\func Red {V : \Set} (t s : Term V) : \Type => {?}
+\func Red {V : \Set} (t s : Term V) : \Type => RedN t s
+  \where {
+    \data RedN {V : \Set} (t s : Term V)
+      | red-n-one (Red1 t s)
+      | red-n-step {q : Term V} (step : Red1 t q) (steps : RedN q s)
+  }
 
 -- 3. Стратегия редукции -- это функция, которая каждому терму сопоставляет либо некоторый терм, к которому он редуцируется за 1 шаг, либо доказательство, что таких термов нет.
 --    Определите любую стратегию редукции.
 
-\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) => {?}
+\func strategy {V : \Set} (t : Term V) : Decide (\Sigma (s : Term V) (Red1 t s)) \elim t
+  | app t1 t2 => cases (checkRedex (app t1 t2)) \with {
+    | yes (f, t', eq) => \let (t1-f, t2-t') => idp-app eq \in
+                          rewrite (t1-f, t2-t') $ yes (f lect09.TermMonad.>>= maybe t' var, redBeta idp idp)
+    | no n => \case strategy t1 \with {
+      | yes (t1', r) => yes (app t1' t2, appLeft r idp)
+      | no n1 => \case strategy t2 \with {
+        | yes (t2', r) => yes (app t1 t2', appRight idp r)
+        | no n2 => no $ \lam (s, r) => cases (s, r) \with {
+          | x, redBeta {g} p p1 => n (g, t2, rewrite p idp)
+          | app x x1, appLeft x2 p => n1 (x, x2)
+          | app x x1, appRight p x2 => n2 (x1, x2)
+        }
+      }
+    }
+  }
+  | lam t => \case strategy t \with {
+    | yes (t', r) => yes (lam t', redLam r)
+    | no n => no (\lam (s, r) => cases (s, r) \with {
+      | lam x, redLam r' => n (x, r')
+    })
+  }
+  | var v => no $ \lam (s, r) => \case r
+  | unit => no $ \lam (s, r) => \case r
+
+  \where {
+    \func checkRedex {V : \Set } (t : Term V) : Decide (\Sigma (f : Term (Maybe V)) (t' : Term V) (eq : t = app (lam f) t')) \elim t
+      | app (lam t) t2 => yes (t, t2, idp)
+      | app (app _ _) t2 => no $ (\lam (a, b, c) => \case c)
+      | app (var _) t2 => no $ (\lam (a, b, c) => \case c)
+      | app unit t2 => no $ (\lam (a, b, c) => \case c)
+      | lam t => no $ (\lam (a, b, c) => \case c)
+      | var v => no $ (\lam (a, b, c) => \case c)
+      | unit => no $ (\lam (a, b, c) => \case c)
+
+    \func idp-app-left {V : \Set} {t1 t2 t1' t2' : Term V} (eq : app t1 t2 = app t1' t2') : t1 = t1'
+      => pmap (\lam t => cases t \with {
+        | app t3 t4 => t3
+        | t => t
+      }) eq
+
+    \func idp-app-right {V : \Set} {t1 t2 t1' t2' : Term V} (eq : app t1 t2 = app t1' t2') : t2 = t2'
+      => pmap (\lam t => cases t \with {
+        | app t3 t4 => t4
+        | t => t
+      }) eq
+
+    \func idp-app {V : \Set} {t1 t2 t1' t2' : Term V} (eq : app t1 t2 = app t1' t2') : \Sigma (t1 = t1') (t2 = t2')
+      => (idp-app-left eq, idp-app-right eq)
+  }
 
 -- 4. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t
-  => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc f => {?}
 
 \func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
   => {?}
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t
-  => {?}
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim t, a
+  | app t1 t2, acc f => acc $ (\lam a' r => {?})
+  | lam t, acc f => acc $ \case \elim __, \elim __ \with {
+    | lam t', redLam t-t' => {?}
+  }
+  --  | lam (app t1 t2), acc f => acc $ \lam a' r => {?}
+--  | lam (lam t), acc f => {?}
+--  | lam (var n), acc f => lamAcc (var n) $ neutralAcc varNeutral
+--  | lam unit, acc f => lamAcc unit $ neutralAcc unitNeutral
+  | var v, acc f => neutralAcc varNeutral
+  | unit, acc f => neutralAcc unitNeutral
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
 \func substLem {U V : \Set} (ctx : U -> Type) (b : Term U) (B : Type) (h : hasType ctx b B)
                (ctx' : V -> Type) (a : U -> Term V) (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u))
   : hasType ctx' (b >>= a) B
-  => {?}
+  \elim b, B, h
+    | unit, Unit, unitType => unfold (>>=) unitType
+    | var v, B, varType p => unfold (>>=) $ rewriteI p $ h' v
+    | app b1 b2, B, appType {A} h1 h2 => unfold (>>=) (
+        \let subst-1 => substLem ctx b1 (Arr A B) h1 ctx' a h' \in
+        \let subst-2 => substLem ctx b2 A h2 ctx' a h' \in appType subst-1 subst-2
+      )
 
-\func substLem1 => {?}
+    | lam t, Arr A B, lamType h =>
+      \let h'-sub : \Pi (u : Maybe U) -> hasType (maybe A ctx') (liftM a u) (maybe A ctx u) =>
+          \lam u => cases u \with {
+            | nothing => unfold liftM $ varType idp
+            | just a1 => unfold liftM (\let prev => h' a1 \in {?})
+          } \in
+        \let sub => substLem (maybe A ctx) t B h (maybe A ctx') (liftM a) h'-sub \in lamType sub
+
+    \where {
+      \func aux {U V : \Set} {A : Type} (ctx : U -> Type) (ctx' : V -> Type) (a : U -> Term V)
+                (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u)) (u : U) (res : Term V) (eq : res = a u) (res-type : Type)
+                (eq-type : res-type = ctx u) (prev : hasType ctx' res res-type)
+        : hasType (maybe A ctx') (termMap just res) res-type \elim res, res-type, prev
+
+        | unit, Unit, unitType => unitType
+        | var v, res-type, varType p => varType p
+        | app res1 res2, res-type, appType prev1 prev2 =>
+          \let aux-1 => aux {U} {V} {Arr A res-type} ctx ctx' a h' {?} res1 {?} (Arr A res-type) {?} prev1 \in {?}
+
+        | lam res, Arr res-type res-type1, lamType prev => {?}
+    }
+
+--\func substLem1 {V : \Set} {ctx : V -> Type} {x b : Term V} {A B : Type} (hx : hasType ctx x A)
+--                (hb : hasType (maybe A ctx) b B) : hasType ctx (b >>= maybe x var) => {?}
 
 -- 6. Докажите, что если Г |- a : A и Red a a', то Г |- a' : A
 
-\func redLem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A)
-  : hasType ctx a' A
-  => {?}
+\func redLem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red a a') {A : Type} (h : hasType ctx a A) : hasType ctx a' A
+  \elim a, a', r, A, h
+    | unit, _, Red.red-n-one r, Unit, unitType => \case r
+    | unit, _, Red.red-n-step {z} step steps, Unit, unitType => \case step
+    | var v, _, Red.red-n-one r, A, varType p => \case r
+    | var v, _, Red.red-n-step {z} step steps, A, varType p => \case step
+    | app a a1, a', Red.red-n-one r, A, h => red1Lem r h
+    | app t1 t2, t, Red.red-n-step {z} step steps, A, h => \let step-t => red1Lem step h \in redLem steps step-t
+    | lam a, a', Red.red-n-one r, A, h => red1Lem r h
+    | lam t, t', Red.red-n-step {z} step steps, A, h => \let step-t => red1Lem step h \in redLem steps step-t
+
+  \where {
+    \func red1Lem {V : \Set} {ctx : V -> Type} {a a' : Term V} (r : Red1 a a') {A : Type} (h : hasType ctx a A) : hasType ctx a' A
+      \elim a, a', r, A, h
+        | app t1 t2, a', redBeta {g} eq p1, A, appType h1 h2 => {?}
+
+        | app t1 t2, app t1' t2', appLeft r idp, A, appType h1 h2 =>
+            \let h1-t1 => red1Lem r h1 \in appType h1-t1 h2
+
+        | app t1 t2, app t1' t2', appRight idp r, A, appType h1 h2 =>
+            \let h2-t2 => red1Lem r h2 \in appType h1 h2-t2
+
+        | lam a, lam a', redLam r, Arr A A1, lamType h => lamType $ red1Lem r h
+  }
+
 
 -- Optional
 -- 7. Для доказательства typeableInterp понадобится вспомогательное утверждение. Докажите его.
