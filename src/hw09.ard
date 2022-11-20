@@ -50,7 +50,7 @@
 
       => mcases {termMap, 1} \with {
         | app t1 t2 => pmap2 app (assoc-help-app t1 l) (assoc-help-app t2 l)
-        | lam t => pmap lam $ unfold liftM {?}
+        | lam t => pmap lam $ unfold liftM $ {?}
         | var v => idp
         | unit => idp
       }
@@ -155,7 +155,7 @@
       \let h'-sub : \Pi (u : Maybe U) -> hasType (maybe A ctx') (liftM a u) (maybe A ctx u) =>
           \lam u => cases u \with {
             | nothing => unfold liftM $ varType idp
-            | just u => unfold liftM $ {?}
+            | just u => unfold liftM $ aux-2 {U} ctx' (a u) (ctx u) (h' u)
           } \in
         \let sub => substLem (maybe A ctx) t B h (maybe A ctx') (liftM a) h'-sub \in lamType sub
 
@@ -168,14 +168,26 @@
 --        | unit, Unit, unitType => unitType
 --        | var v, res-type, varType p => varType p
 --        | app res1 res2, res-type, appType {A2} prev1 prev2 => cases (a u, eq) \with {
---          | app u1 u2, eq1 =>
---              \let aux-1 => aux {U} {V} {A} ctx ctx' a h' {?} res1 {?} (Arr A2 res-type) {?} prev1 \in
---              \let aux-2 => aux {U} {V} {A} ctx ctx' a h' {?} res2 {?} A2 {?} prev2 \in appType aux-1 aux-2
+--          | app x1 x2, eq1 =>
+--              \let aux-1 => aux {U} {V} {A} ctx ctx' {?} h' {?} res1 {?} (Arr A2 res-type) {?} prev1 \in
+--              \let aux-2 => aux {U} {V} {A} ctx ctx' {?} h' {?} res2 {?} A2 {?} prev2 \in appType aux-1 aux-2
 --        }
 ----          \let aux-1 => aux {U} {V} {Arr A res-type} ctx ctx' a h' {?} res1 {?} (Arr A2 res-type) {?} prev1 \in {?}
 --
 --        | lam res, Arr res-type1 res-type2, lamType prev =>
 --            \let res-t => aux (maybe res-type1 ctx) (maybe res-type1 ctx') (liftM a) {?} (just u) res {?} res-type2 {?} prev \in {?}
+
+      \func aux-2 {U V : \Set} {A : Type} (ctx' : V -> Type) (res : Term V) (res-type : Type) (prev : hasType ctx' res res-type)
+        : hasType (maybe A ctx') (termMap just res) res-type \elim res, res-type, prev
+
+        | unit, Unit, unitType => unitType
+        | var v, res-type, varType p => varType p
+        | app res1 res2, res-type, appType {A2} prev1 prev2 =>
+          \let rec-1 => aux-2 {U} {V} {A} ctx' res1 (Arr A2 res-type) prev1 \in
+          \let rec-2 => aux-2 {U} {V} {A} ctx' res2 A2 prev2 \in appType rec-1 rec-2
+
+        | lam res, Arr res-type1 res-type2, lamType prev =>
+          \let rec => aux-2 {U} {Maybe V} {{?}} (maybe A ctx') res res-type2 prev \in lamType {?}
     }
 
 --\func substLem1 {V : \Set} {ctx : V -> Type} {a b : Term V} {x : V} {A B : Type} (hx : hasType ctx (var x) A)
@@ -206,7 +218,7 @@
                       | just a => varType idp
                     }
                   )
-                \in rewrite p1 g-t
+                \in rewrite p1 $ rewriteI >>=-eq g-t
               }
 
         | app t1 t2, app t1' t2', appLeft r idp, A, appType h1 h2 =>
