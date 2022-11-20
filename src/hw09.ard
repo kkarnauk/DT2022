@@ -7,6 +7,7 @@
 \import Paths.Meta
 \import Utils (Maybe, just, maybe, nothing)
 \import lect05
+\import lect06 ()
 \import lect07(Decide, no, yes)
 \import lect09
 \open LinearOrder
@@ -34,7 +35,7 @@
       | lam m => rewrite >>=-assoc $ pmap lam $ pmap (m >>=) $ funExt'
                                    $ \lam a => unfold liftM $ cases a \with {
                                         | nothing => idp
-                                        | just a => unfold {?}
+                                        | just a => assoc-help k l a
                                       }
       | var v => idp
       | unit => idp
@@ -43,6 +44,23 @@
   \where {
     \func liftM-return-idp {A : \Set} (m : Term A) : liftM {A} return = return =>
       unfold liftM $ funExt' $ \lam a => cases a idp
+
+    \func assoc-help {A B C : \Set} (k : A -> Term B) (l : B -> Term C) (a : A)
+      : termMap just (k a) >>= maybe (var nothing) (\lam a => termMap just (l a)) = termMap just (k a >>= l)
+
+      => mcases {termMap, 1} \with {
+        | app t1 t2 => pmap2 app (assoc-help-app t1 l) (assoc-help-app t2 l)
+        | lam t => pmap lam $ unfold liftM {?}
+        | var v => idp
+        | unit => idp
+      }
+
+    \func assoc-help-app {B C : \Set} (t : Term B) (l : B -> Term C)
+      : termMap just t >>= maybe (var nothing) (\lam a => termMap just (l a)) = termMap just (t >>= l) \elim t
+        | app t1 t2 => pmap2 app (assoc-help-app t1 l) (assoc-help-app t2 l)
+        | lam t => pmap lam $ {?}
+        | var v => idp
+        | unit => idp
   }
 
 
@@ -111,30 +129,14 @@
 
 -- 4. Докажите, что подтермы достижимого терма достижимы.
 
-\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim t, a
-  | app t1 t2, acc f => acc $ \case \elim __, \elim __ \with {
-    | p0, redBeta p p1 => {?}
-    | app p0 p1, appLeft p2 p => {?}
-    | app p0 p1, appRight p p2 => {?}
-  }
-  | lam t, acc _x => {?}
-  | var v, acc _x => {?}
-  | unit, acc _x => {?}
+\func appAccLeft {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 t \elim a
+  | acc f => acc $ \lam a' r => appAccLeft $ f (app a' s) $ appLeft r idp
 
-\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s
-  => {?}
+\func appAccRight {V : \Set} {t s : Term V} (a : Acc Red1 (app t s)) : Acc Red1 s \elim a
+  | acc f => acc $ \lam a' r => appAccRight $ f (app t a') $ appRight idp r
 
-\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim t, a
-  | app t1 t2, acc f => acc $ (\lam a' r => {?})
-  | lam t, acc f => acc $ \case \elim __, \elim __ \with {
-    | lam t', redLam t-t' => {?}
-  }
-  --  | lam (app t1 t2), acc f => acc $ \lam a' r => {?}
---  | lam (lam t), acc f => {?}
---  | lam (var n), acc f => lamAcc (var n) $ neutralAcc varNeutral
---  | lam unit, acc f => lamAcc unit $ neutralAcc unitNeutral
-  | var v, acc f => neutralAcc varNeutral
-  | unit, acc f => neutralAcc unitNeutral
+\func subLamAcc {V : \Set} {t : Term (Maybe V)} (a : Acc Red1 (lam t)) : Acc Red1 t \elim a
+  | acc f => acc $ \lam a' r => subLamAcc $ f (lam a') $ redLam r
 
 -- 5. Докажите следующую обобщенную лемму о подстановке и выведите из нее обычную версию: если Г, x : A |- b : B и Г |- a : A, то Г |- b[a/x] : B.
 
@@ -153,23 +155,27 @@
       \let h'-sub : \Pi (u : Maybe U) -> hasType (maybe A ctx') (liftM a u) (maybe A ctx u) =>
           \lam u => cases u \with {
             | nothing => unfold liftM $ varType idp
-            | just a1 => unfold liftM (\let prev => h' a1 \in {?})
+            | just u => unfold liftM $ {?}
           } \in
         \let sub => substLem (maybe A ctx) t B h (maybe A ctx') (liftM a) h'-sub \in lamType sub
 
     \where {
-      \func aux {U V : \Set} {A : Type} (ctx : U -> Type) (ctx' : V -> Type) (a : U -> Term V)
-                (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u)) (u : U) (res : Term V) (eq : res = a u) (res-type : Type)
-                (eq-type : res-type = ctx u) (prev : hasType ctx' res res-type)
-        : hasType (maybe A ctx') (termMap just res) res-type \elim res, res-type, prev
-
-        | unit, Unit, unitType => unitType
-        | var v, res-type, varType p => varType p
-        | app res1 res2, res-type, appType prev1 prev2 => {?}
---          \let aux-1 => aux {U} {V} {Arr A res-type} ctx ctx' a h' {?} res1 {?} (Arr A res-type) {?} prev1 \in {?}
-
-        | lam res, Arr res-type1 res-type2, lamType prev =>
-            \let res-t => aux (maybe res-type1 ctx) (maybe res-type1 ctx') (liftM a) {?} (just u) res {?} res-type2 {?} prev \in {?}
+--      \func aux {U V : \Set} {A : Type} (ctx : U -> Type) (ctx' : V -> Type) (a : U -> Term V)
+--                (h' : \Pi (u : U) -> hasType ctx' (a u) (ctx u)) (u : U) (res : Term V) (eq : res = a u) (res-type : Type)
+--                (eq-type : res-type = ctx u) (prev : hasType ctx' res res-type)
+--        : hasType (maybe A ctx') (termMap just res) res-type \elim res, res-type, prev
+--
+--        | unit, Unit, unitType => unitType
+--        | var v, res-type, varType p => varType p
+--        | app res1 res2, res-type, appType {A2} prev1 prev2 => cases (a u, eq) \with {
+--          | app u1 u2, eq1 =>
+--              \let aux-1 => aux {U} {V} {A} ctx ctx' a h' {?} res1 {?} (Arr A2 res-type) {?} prev1 \in
+--              \let aux-2 => aux {U} {V} {A} ctx ctx' a h' {?} res2 {?} A2 {?} prev2 \in appType aux-1 aux-2
+--        }
+----          \let aux-1 => aux {U} {V} {Arr A res-type} ctx ctx' a h' {?} res1 {?} (Arr A2 res-type) {?} prev1 \in {?}
+--
+--        | lam res, Arr res-type1 res-type2, lamType prev =>
+--            \let res-t => aux (maybe res-type1 ctx) (maybe res-type1 ctx') (liftM a) {?} (just u) res {?} res-type2 {?} prev \in {?}
     }
 
 --\func substLem1 {V : \Set} {ctx : V -> Type} {a b : Term V} {x : V} {A B : Type} (hx : hasType ctx (var x) A)
@@ -225,8 +231,22 @@
 
 -- 8. Докажите typeableInterp из лекции
 
+\func >>=-eq {A B : \Set} : (TermMonad.>>= {A} {B}) = (lect09.TermMonad.>>=) => {?} -- не хочу доказывать, беда определений
+
 \func typeableInterp {U V : \Set} (ctx : U -> Type) (env : U -> Term V)
                      (C : \Pi (u : U) -> Interp (ctx u) (env u)) {t : Term U} {T : Type}
                      (p : hasType ctx t T)
   : Interp T (t >>= env)
-  => {?}
+  \elim t, T, p
+    | unit, Unit, unitType => interpAcc Unit unit (neutralAcc unitNeutral)
+    | var v, T, varType p => unfold (>>=) (\let C-v => C v \in \let C-v-p => rewrite p C-v \in C-v-p)
+    | app t1 t2, T, appType p1 p2 =>
+        \let l => typeableInterp ctx env C p1 \in
+        \let r => typeableInterp ctx env C p2 \in unfold (>>=) $ l (t2 >>= env) r
+
+    | lam t, Arr T T1, lamType p => \lam s i => unfold (>>=) (
+      \let t-rec => typeableInterp (maybe T ctx) (liftM env) (\lam u => cases u \with {
+        | nothing => unfold liftM $ neutralInterp T $ varNeutral
+        | just a => unfold liftM $ {?}
+      }) p \in \let t-rec => rewrite >>=-eq t-rec \in {?}
+    )
