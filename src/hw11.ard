@@ -1,25 +1,106 @@
+\import Equiv
+\import Equiv.Univalence
+\import Function.Meta
+\import Meta
+\import Paths.Meta
+\import Utils \hiding (transport, Or, inl, inr)
+\import lect05 (funExt')
+\import lect10 (setLem)
 \import lect11
-\import Utils \hiding (transport,Or,inl,inr)
 
 -- 1. Докажите, что если A : \Prop, то Trunc A эквивалентен A.
 
-\func trunc-prop {A : \Prop} : Trunc A <-> A => {?}
+\func trunc-prop {A : \Prop} : Trunc A <-> A => (
+  \lam t => cases t \with {
+    | trunc a => a
+  },
+  \lam a => trunc a
+)
 
 -- 2. Докажите следующий закон де Моргана.
 
-\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C)) => {?}
+\func deMorgan (A B C : \Prop) : (\Sigma A (B `Or` C)) <-> ((\Sigma A B) `Or` (\Sigma A C))
+  => (left-right A B C, right-left A B C)
+
+  \where {
+    \func left-right (A B C : \Prop) : (\Sigma A (B `Or` C)) -> ((\Sigma A B) `Or` (\Sigma A C))
+      => \lam (a, o) => cases o \with {
+        | inl b => inl (a, b)
+        | inr c => inr (a, c)
+      }
+
+    \func right-left (A B C : \Prop) : ((\Sigma A B) `Or` (\Sigma A C)) -> (\Sigma A (B `Or` C))
+      => \lam o => cases o \with {
+        | inl (a, b) => (a, inl b)
+        | inr (a, c) => (a, inr c)
+      }
+  }
 
 -- 3. Определите элиминатор для Or через Or-rec, не используя паттерн матчинг на Or.
 
 \func Or-elim {A B : \Prop} (C : Or A B -> \Prop)
               (f : \Pi (x : A) -> C (inl x)) (g : \Pi (y : B) -> C (inr y))
-              (p : A `Or` B) : C p => {?}
+              (p : A `Or` B) : C p
+  => Or-rec
+      (\lam a => \let | a-eq => Path.inProp p (inl a)
+                      | calc => rewriteI a-eq $ f a
+                 \in calc)
+      (\lam b => \let | b-eq => Path.inProp p (inr b)
+                      | calc => rewriteI b-eq $ g b
+                 \in calc)
+      p
 
 -- 4. Докажите, что тип утверждений является множеством.
 
-\func prop-isSet : isSet \Prop => {?}
+\func prop-isSet : isSet \Prop => \lam a b x y => Path.inProp x y
+
+\func prop2-isSet {A : \Type} (isP : isProp A) : isSet A =>
+  setLem
+      (\lam _ _ => A)
+      (\lam _ _ x y => isP x y)
+      (\lam a => a)
+      (\lam {a} {a'} _ => isP a a')
 
 -- 5. Докажите, что функции Prop1-to-Prop2 и Prop2-to-Prop1 взаимно обратны и, как следствие, что Prop1 = Prop2.
+
+\func Prop2-to-Prop1'-A-eq-A {A : \Type} {isP : isProp A} : Prop2-to-Prop1' A isP = A =>
+  equivalence=>equality (\new QEquiv {
+    | f => data-to-a
+    | ret => \lam b => inc b
+    | ret_f => \lam x => cases x \with {
+      | inc a => pmap inc (data-to-a-eq a)
+    }
+    | f_sec => \lam y => data-to-a-eq y
+  })
+
+  \where {
+    \sfunc data-to-a {A : \Type} {isP : isProp A} (p : Prop2-to-Prop1' A isP) : A \elim p
+      | inc a => a
+
+    \func data-to-a-eq {A : \Type} {isP : isProp A} (a : A) : data-to-a (inc {A} {isP} a) = a => \peval data-to-a (inc a)
+  }
+--
+\func Prop1-to-Prop2-mv (P : Prop2) : Prop1-to-Prop2 (Prop2-to-Prop1 P) = P
+  => unfold (Prop1-to-Prop2, Prop2-to-Prop1) $ cases P \with {
+    (A, isP) => ext (Prop2-to-Prop1'-A-eq-A, all-isProp-eq)
+  }
+
+  \where {
+    \func all-isProp-eq {A : \Type} {p q : isProp A} : p = q => ext $ \lam x y =>
+      \case (p x y) \as pxy, idp : p x y = pxy, (q x y) \as qxy, idp : q x y = qxy \with {
+        | pxy, peq, qxy, qeq => rewrite (peq, qeq) $ prop2-isSet p x y pxy qxy
+      }
+  }
+
+\func Prop2-to-Prop1-mv (P : Prop1) : Prop2-to-Prop1 (Prop1-to-Prop2 P) = P
+  => unfold (Prop2-to-Prop1, Prop1-to-Prop2) $ Prop2-to-Prop1'-A-eq-A
+
+\func Prop1=Prop2 : Prop1 = Prop2 => equivalence=>equality (\new QEquiv {
+  | f => Prop1-to-Prop2
+  | ret => Prop2-to-Prop1
+  | ret_f => Prop2-to-Prop1-mv
+  | f_sec => Prop1-to-Prop2-mv
+})
 
 -- Можно сделать только одно из упражнений 6a,6b на выбор.
 -- 6a. Тип С называется когенератором, если для любых множеств A и B и любых функция f,g : A -> B верно, что если h `o` f = h `o` g для всех h : B -> C, то f = g.
@@ -29,7 +110,11 @@
 
 \func isCogenerator (C : \Type) => \Pi {A B : \Set} (f g : A -> B) (p : \Pi (h : B -> C) -> h `o` f = h `o` g) -> f = g
 
-\func PropIsCogenerator : isCogenerator \Prop => {?}
+\func PropIsCogenerator : isCogenerator \Prop => \lam {A} {B} f g p => funExt' $ \lam a =>
+    \let | op => unfold o p
+         | h-op => op (\lam (b : B) => f a = b)
+         | h-op-a => pmap (\lam x => x a) h-op
+    \in rewriteI h-op-a idp
 
 -- 6b. Тип X называется инъективным, если для любой функции f : A -> X и любой инъекции i : A -> B сущесвует функция l : B -> X такая, что l `o` i = f.
 --     Докажите, что \Prop инъективен.
@@ -43,6 +128,20 @@
 -- Можно сделать только одно из упражнений 7a,7b на выбор.
 -- 7a. Докажите, что (Bool = Bool) = Bool.
 
-\func BoolAut : (Bool = Bool) = Bool => {?}
-
+\func BoolAut : (Bool = Bool) = Bool =>
+  \let bool-eq => =-to-Equiv {Bool} {Bool} idp \in cases bool-eq \with {
+    | (f,ret,ret_f,sec,f_sec) => equivalence=>equality (\new Equiv {
+      | f => \lam a => f true
+      | ret => \lam b => equivalence=>equality (\new Equiv {
+        | f => f
+        | ret => ret
+        | ret_f => ret_f
+        | sec => sec
+        | f_sec => f_sec
+      })
+      | ret_f => \lam x => unfold equivalence=>equality {?}
+      | sec => \lam b => {?}
+      | f_sec => \lam y => {?}
+    })
+  }
 -- 7b. Докажите, что (n+m)-элементное множество равно размеченному объединению n- и m-элементных множеств.
