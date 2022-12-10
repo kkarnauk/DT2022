@@ -1,9 +1,15 @@
+\import Function.Meta
+\import Meta
+\import Paths.Meta
 \import Utils
 \import lect12
 
 -- 1. Определите функцию negPred : Int -> Int такую, что negPred x = x, если x > 0, и negPred x = x - 1, если x <= 0.
 
-\func negPred (x : Int) : Int => {?}
+\func negPred (x : Int) : Int
+  | pos 0 => neg 1
+  | pos n => pos n
+  | neg n => neg (suc n)
 
 -- 2. Определите функции сложения и умножения для Int.
 
@@ -17,6 +23,9 @@
 --    Используйте типы данных с условиями, чтобы вычислительно отождествить различные нули.
 
 \data BinNat
+  | b-zero
+  | b-odd (n : BinNat)
+  | b-even (n : BinNat) \with { b-zero => b-zero }
 
 -- 4. Докажите, что функция pred сюръективна.
 
@@ -24,11 +33,15 @@
   | 0 => 0
   | suc n => n
 
-\func pred-is-sur : isSur pred => {?}
+\func pred-is-sur : isSur pred =>
+  \lam b => cases b \with {
+    | 0 => in (0, idp)
+    | suc b => in (suc (suc b), idp)
+  }
 
 -- 5. Докажите, что функция suc не сюръективна.
 
-\func suc-is-not-sur (p : isSur suc) : Empty => {?}
+\func suc-is-not-sur (p : isSur suc) : Empty => \let (in (_, eq)) => p 0 \in cases eq
 
 -- 6. Пусть f : A -> B и g : B -> C ─ некоторые функции.
 --    Докажите, что если f и g сюръективны, то g `o` f также сюръективна.
@@ -36,7 +49,10 @@
 
 \func \fixr 9 o {A B C : \Type} (g : B -> C) (f : A -> B) => \lam a => g (f a)
 
-\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f) => {?}
+\func o-sur {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur f) (q : isSur g) : isSur (g `o` f)
+  => \lam c => \let | (in (b, qc)) => q c
+                    | (in (a, pb)) => p b
+               \in in (a, unfold o $ rewrite pb qc)
 
 \func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g => {?}
 
@@ -56,7 +72,7 @@
 -- "существует инъекция из A в Subs A" и "не существует сюръекции из A в Subs A".
 
 \func cantor1 (A : \Set) : \Sigma (f : A -> Subs A) (isInj f)
-  => {?}
+  => (\lam a1 a2 => a1 = a2, \lam x y p => \let py => pmap (\lam f => f y) p \in rewrite py idp)
 
 \func cantor2 (A : \Set) (f : A -> Subs A) (p : isSur f) : Empty
   => {?}
