@@ -13,9 +13,22 @@
 
 -- 2. Определите функции сложения и умножения для Int.
 
-\func \infixl 6 + (x y : Int) : Int => {?}
+\func \infixl 6 + (x y : Int) : Int
+  | pos n1, pos n2 => pos (n1 Nat.+ n2)
+  | pos 0, neg n => neg n
+  | pos (suc n), neg 1 => pos n
+  | pos (suc n1), neg (suc n2) => pos n1 + neg n2
+  | neg 0, pos n2 => pos n2
+  | neg 0, neg n2 => neg n2
+  | neg (suc n1), pos 0 => neg (suc n1)
+  | neg (suc n1), pos (suc n2) => neg n1 + pos n2
+  | neg (suc n1), neg (suc n2) => neg (suc $ suc $ n1 Nat.+ n2)
 
-\func \infixl 7 * (x y : Int) : Int => {?}
+\func \infixl 7 * (x y : Int) : Int
+  | pos n1, pos n2 => pos (n1 Nat.* n2)
+  | pos n1, neg n2 => neg (n1 Nat.* n2)
+  | neg (suc n1), pos n2 => neg (suc n1 Nat.* n2)
+  | neg (suc n1), neg (suc n2) => pos (suc n1 Nat.* suc n2)
 
 -- 3. Определите тип данных BinNat для бинарных натуральных чисел.
 --    У него должно быть три конструктора: для 0, для чисел вида 2*n и чисел вида 2*n+1.
@@ -54,7 +67,8 @@
                     | (in (a, pb)) => p b
                \in in (a, unfold o $ rewrite pb qc)
 
-\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g => {?}
+\func o-sur' {A B C : \Type} (f : A -> B) (g : B -> C) (p : isSur (g `o` f)) : isSur g
+  => \lam c => \let (in (a, pc)) => unfold o (p c) \in in (f a, pc)
 
 -- 7. Определите множество конечных подмножеств множества A, то есть списков элементов A с точностью до перестановок и повторений элементов.
 
@@ -75,7 +89,13 @@
   => (\lam a1 a2 => a1 = a2, \lam x y p => \let py => pmap (\lam f => f y) p \in rewrite py idp)
 
 \func cantor2 (A : \Set) (f : A -> Subs A) (p : isSur f) : Empty
-  => {?}
+  => \case (p (image-not-contains f)) \with {
+      | in (a, eq) => {?}
+    }
+  \where {
+    \func image-not-contains {A : \Set} (f : A -> Subs A) : Subs A => \lam a => Not $ f a a
+  }
+
 
 -- Optional
 -- 9. Постройте функции Nat -> BinNat и BinNat -> Nat и докажите, что они взаимно обратны.
