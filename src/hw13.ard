@@ -1,3 +1,7 @@
+\import Function.Meta
+\import Logic (TruncP, inP, truncP)
+\import Meta
+\import Paths.Meta
 \import Utils
 \import lect12 \hiding (sym)
 \import lect13
@@ -5,15 +9,42 @@
 -- 1. Докажите, что add x (add x s) = add x s и add x (add y s) = add y (add x s)
 
 \func add-idemp {S : SetSpec} (x : S.A) (s : S) : add x (add x s) = add x s
-  => {?}
+  => setExt $ \lam a => (
+    \lam i => cases (add-univ i) \with {
+      | Or.byLeft eq => rewrite eq $ add-head
+      | Or.byRight res => res
+    },
+    add-tail
+  )
 
 \func add-swap {S : SetSpec} (x y : S.A) (s : S) : add x (add y s) = add y (add x s)
-  => {?}
+  => setExt $ \lam a => (aux, aux)
+
+  \where {
+    \func aux {S : SetSpec} {a x y : S.A} {s : S} : S.isElem a (S.add y (S.add x s)) -> S.isElem a (S.add x (S.add y s))
+      => \lam i => cases (add-univ i) \with {
+        | byLeft eq => rewrite eq $ add-tail add-head
+        | byRight else => cases (add-univ else) \with {
+          | byLeft eq => rewrite eq $ add-head
+          | byRight else => add-tail $ add-tail else
+        }
+      }
+
+  }
 
 -- 2. Докажите, что множество подмножеств является инстансом SetSpec
 
 \func subsets {A : \Set} : SetSpec {A} (A -> \Prop)
-  => {?}
+  => \new SetSpec {
+    | empty => {?}
+    | add => {?}
+    | isElem => \lam a s => s a
+    | setExt => \lam eq => {?}
+    | add-head {a} {s} => unfold {?}
+    | add-tail {a} {x} {s} => \lam i => {?}
+    | empty-univ => {?}
+    | add-univ => {?}
+  }
 
 -- 3. Докажите, что множество подмножеств является наибольшим инстансом, то есть любой другой вкладывается в него.
 
@@ -22,11 +53,34 @@
 
 -- 4. Определите функцию isEmpty для произвольного конечного множества и для ListSet.
 
-\func isEmptySet {S : FinSetSpec} (x : S) : Bool => {?}
+\func isEmptySet {S : FinSetSpec} (x : S) : Bool => aux (set-fin x)
 
-\func isEmptyListSet {A : \Set} (x : ListSet A) : Bool => {?}
+  \where {
+    \sfunc aux {S : FinSetSpec} {x : S} (t : TruncP (\Sigma (l : List S.A) (\Pi (x1 : S.A) -> S.isElem x1 x <-> In x1 l))) : Bool \elim t
+      | inP a => cases a.1 \with {
+        | nil => true
+        | :: _ _ => false
+      }
+      | truncP a t i => {?}
+  }
+
+\func isEmptyListSet {A : \Set} (x : ListSet A) : Bool \elim x
+  | in~ l => cases l \with {
+    | nil => true
+    | :: a l1 => false
+  }
+  | equals~ {l1} {l2} r => \case \elim l1, \elim l2, \elim r \with {
+    | nil, nil, r => idp
+    | nil, :: a l2, r => \case (r a).2 (here idp)
+    | :: a l1, nil, r => \case (r a).1 (here idp)
+    | :: a l1, :: a1 l2, r => idp
+  }
 
 -- 5. Определите функцию union {A : \Set} : S -> S -> S для произвольного S (удовлетворяющего FinSetSpec) и для ListSet.
+
+\func unionSet {S : FinSetSpec} (s1 s2 : S) : S => {?}
+
+\func unionListSet {A : \Set} (s1 s2 : ListSet A) : ListSet A => {?}
 
 -- 6. Определите функцию intersection {A : DecSet} : S -> S -> S для произвольного S (удовлетворяющего FinSetSpec) и для ListSet.
 
